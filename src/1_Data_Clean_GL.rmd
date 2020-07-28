@@ -1,0 +1,438 @@
+---
+title: "1_Data_Clean_GL"
+author: "Karin Emanuelson"
+date: "6/11/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+#Setup
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(xts)
+library(dygraphs)
+library(imputeTS)
+library(readr)
+library(here)
+
+# source('src/DilutionGauging.R')
+source('src/GL_functions.R')
+knitr::opts_chunk$set(echo = TRUE)
+
+# Create Lookup File including only the dates of Gains and Losses slugs
+lookup<-as.Date(c('2019-06-14', '2019-06-29', '2019-07-11', '2019-07-16'))
+#Set window size for calculating rolling average.
+winSize <- 12
+```
+
+
+# Data Clean
+#### Load raw conductivity data, identify start and end time for each slug breakthrough curve, idenity bad data IDs to be removed from the dataset
+
+### Site 850, CZO4
+```{r}
+#load file by name
+# CZO 4: Site 850
+RAW_CZO4<-read_csv('Data/in/CR1000_CZO4_1454_PB3_Data_COND.csv') %>%
+      mutate(datetime= mdy_hms(TIMESTAMP,tz='CST6CDT')) %>% 
+      mutate(site='850') %>% 
+      mutate(date=date(datetime)) %>% 
+      select(-RECORD, -TIMESTAMP) %>% 
+      filter(date %in% lookup) %>% 
+    # Create ID column
+      mutate(id = rownames(.))
+
+# #load data as dygraph to identify start and start times of slugs
+# #first convert to xts file
+# RAW4.xts<- xts(select(RAW_CZO4,datetime,id,SC_uS), order.by = RAW4$datetime)
+# 
+# #plot as dygraph
+# dygraph(RAW4.xts)%>% dyRangeSelector()
+
+# Create vector of Bad ID 
+Bad_ID_CZO4<-c(772, 844, 1064, 1105, 1886, 1962, 2010, 2034, 2230, 2254, 2306, 2378, 2497, 9328:9350, 9469, 9763, 13690:13696, 16427:16430, 20808, 29052, 29352, 29472, 31477:31557)
+
+# Remove erroreous data from timeseries
+Clean_CZO4 <- RAW_CZO4%>%
+  mutate(SC_uS, SC_uS = ifelse(id %in% Bad_ID_CZO4,NA, SC_uS))%>%
+  # interpolate between removed/missing timesteps
+  mutate(SC_uS = na_interpolation(SC_uS, option = "linear")) %>% 
+  # Create rolling average with new dataset to smooth sensor data
+  mutate(SC_uS_rollavg = rollapply(SC_uS, winSize,mean,align='center',fill=NA))%>%
+  mutate(date = date(datetime))%>%
+  select(date, site, id, datetime, SC_uS, SC_uS_rollavg, Ct_1, Ct_2, Temp_C)
+
+# first convert to xts file
+Clean.xts<- xts(select(Clean_CZO4,datetime, id, SC_uS, SC_uS_rollavg), order.by = Clean_CZO4$datetime)
+
+# plot as dygraph
+dygraph(Clean.xts)%>%
+          dyRangeSelector()
+```
+
+### Site 600, CZO3
+```{r}
+#load file by name
+# CZO 3: Site 600
+RAW_CZO3<-read.csv('Data/in/CR1000_CZO3_1459_PB4_Data_COND.csv') %>%
+      mutate(datetime= mdy_hms(TIMESTAMP,tz='CST6CDT')) %>% 
+      mutate(site='600') %>% 
+      mutate(date=date(datetime)) %>% 
+      select(-RECORD, -TIMESTAMP) %>% 
+      filter(date %in% lookup) %>% 
+    # Create ID column
+      mutate(id = rownames(.))
+
+
+# #load data as dygraph to identify start and start times of slugs
+# #first convert to xts file
+# RAW3.xts<- xts(select(RAW_CZO3, id, datetime, SC_uS), order.by = RAW_CZO3$datetime)
+# 
+# #plot as dygraph
+# dygraph(RAW3.xts)%>% dyRangeSelector()
+
+# # Create vector of Bad ID 
+# Bad_ID_CZO3<-c(772, 844, 1064, 1105, 1886, 1962, 2010, 2034, 2230, 2254, 2306, 2378, 2497, 9328:9350, 9469, 9763, 13690:13696, 16427:16430, 20808, 29052, 29352, 29472, 31477:31557)
+
+# Remove erroreous data from timeseries
+Clean_CZO3 <- RAW_CZO3%>%
+  # mutate(SC_uS, SC_uS = ifelse(id %in% Bad_ID_CZO3,NA, SC_uS))%>%
+    # interpolate between removed/missing timesteps
+  mutate(SC_uS = na_interpolation(SC_uS, option = "linear")) %>% 
+ # Create rolling average with new dataset to smooth sensor data
+  mutate(SC_uS_rollavg = rollapply(SC_uS, winSize,mean,align='center',fill=NA))%>%
+  mutate(date = date(datetime))%>%
+  select(date, site, id, datetime, SC_uS, SC_uS_rollavg, Ct_1, Ct_2, Temp_C)
+
+# # first convert to xts file
+# Clean.xts<- xts(select(Clean_CZO3,datetime, id, SC_uS, SC_uS_rollavg), order.by = Clean_CZO3$datetime)
+# 
+# # plot as dygraph
+# dygraph(Clean.xts)%>%
+#           dyRangeSelector()
+```
+
+### Site 350
+```{r}
+#load file by name
+# CZO 3: Site 600
+RAW_CZO350<-read.csv('Data/in/CR800_PB2_Data_COND_all.csv') %>%
+      mutate(datetime= mdy_hms(TIMESTAMP,tz='CST6CDT')) %>% 
+      mutate(site='350') %>% 
+      mutate(date=date(datetime)) %>% 
+      select(-RECORD, -TIMESTAMP) %>% 
+      filter(date %in% lookup) %>% 
+    # Create ID column
+      mutate(id = rownames(.))
+
+# # #load data as dygraph to identify start and start times of slugs
+# # #first convert to xts file
+RAW350.xts<- xts(select(RAW_CZO350, id, datetime, SC_uS), order.by = RAW_CZO350$datetime)
+
+#plot as dygraph
+dygraph(RAW350.xts)%>% dyRangeSelector()
+
+# # Create vector of Bad ID 
+Bad_ID_CZO350<-c(22736:22745, 23067:23143, 32249:32304)
+
+winSize <- 30
+
+# Remove erroreous data from timeseries
+Clean_CZO350 <- RAW_CZO350%>%
+  mutate(SC_uS, SC_uS = ifelse(id %in% Bad_ID_CZO350,NA, SC_uS))%>%
+    # interpolate between removed/missing timesteps
+  mutate(SC_uS = na_interpolation(SC_uS, option = "linear")) %>% 
+ # Create rolling average with new dataset to smooth sensor data
+  mutate(SC_uS_rollavg = rollapply(SC_uS, winSize,mean,align='center',fill=NA))%>%
+  mutate(date = date(datetime))%>%
+  select(date, site, id, datetime, SC_uS, SC_uS_rollavg, Ct_1, Ct_2, Temp_C)
+
+# # first convert to xts file
+Clean.xts<- xts(select(Clean_CZO350,datetime, id, SC_uS, SC_uS_rollavg), order.by = Clean_CZO350$datetime)
+
+# plot as dygraph
+dygraph(Clean.xts)%>%
+          dyRangeSelector()
+```
+
+### Site 150, CZO2
+```{r}
+#load file by name
+# CZO 3: Site 600
+RAW_CZO2<-read.csv('Data/in/CR1000_CZO2_1468_PB1_Data_COND.csv') %>%
+      mutate(datetime= mdy_hms(TIMESTAMP,tz='CST6CDT')) %>% 
+      mutate(site='150') %>% 
+      mutate(date=date(datetime)) %>% 
+      select(-RECORD, -TIMESTAMP) %>% 
+      filter(date %in% lookup) %>% 
+      distinct() %>% 
+    # Create ID column
+      mutate(id = rownames(.))
+
+
+# #load data as dygraph to identify start and start times of slugs
+# #first convert to xts file
+# RAW2.xts<- xts(select(RAW_CZO2, id, datetime, SC_uS), order.by = RAW2$datetime)
+# 
+# #plot as dygraph
+# dygraph(RAW2.xts)%>% dyRangeSelector()
+
+# Create vector of Bad ID
+Bad_ID_CZO2<-c(854:872, 1272:1276, 33816:33817)
+winSize <- 12
+
+# Remove erroreous data from timeseries
+Clean_CZO2 <- RAW_CZO2%>%
+  mutate(SC_uS, SC_uS = ifelse(id %in% Bad_ID_CZO2,NA, SC_uS))%>%
+  # interpolate between removed/missing timesteps
+  mutate(SC_uS = na_interpolation(SC_uS, option = "linear")) %>% 
+  # Create rolling average with new dataset to smooth sensor data
+  mutate(SC_uS_rollavg = rollapply(SC_uS, winSize,mean,align='center',fill=NA))%>%
+  mutate(date = date(datetime))%>%
+  select(date, site, id, datetime, SC_uS, SC_uS_rollavg, Ct_1, Ct_2, Temp_C)
+
+# # first convert to xts file
+Clean.xts<- xts(select(Clean_CZO2,datetime, id, SC_uS, SC_uS_rollavg), order.by = Clean_CZO2$datetime)
+
+# plot as dygraph
+dygraph(Clean.xts)%>%
+          dyRangeSelector()
+```
+
+### Site 0, CZO1
+```{r}
+#load file by name
+# CZO 1: Site 0
+RAW_CZO1<-read.csv('Data/in/CR1000_CZO1_1490_PB5_Data_COND.csv') %>%
+      mutate(datetime= mdy_hms(TIMESTAMP,tz='CST6CDT')) %>% 
+      mutate(site='0') %>% 
+      mutate(date=date(datetime)) %>% 
+      select(-RECORD, -TIMESTAMP) %>% 
+      filter(date %in% lookup) %>% 
+    # Create ID column
+      mutate(id = rownames(.))
+
+
+# #load data as dygraph to identify start and start times of slugs
+# #first convert to xts file
+# RAW1.xts<- xts(select(RAW_CZO1, id, datetime, SC_uS), order.by = RAW1$datetime)
+# 
+# #plot as dygraph
+# dygraph(RAW1.xts)%>% dyRangeSelector()
+
+# # Create vector of Bad ID 
+# Bad_ID_CZO1<-c(772, 844, 1064, 1105, 1886, 1962, 2010, 2034, 2230, 2254, 2306, 2378, 2497, 9328:9350, 9469, 9763, 13690:13696, 16427:16430, 20808, 29052, 29352, 29472, 31477:31557)
+
+# Remove erroreous data from timeseries
+Clean_CZO1 <- RAW_CZO1%>%
+  # mutate(SC_uS, SC_uS = ifelse(id %in% Bad_ID_CZO1,NA, SC_uS))%>%
+    # interpolate between removed/missing timesteps
+  mutate(SC_uS = na_interpolation(SC_uS, option = "linear")) %>% 
+ # Create rolling average with new dataset to smooth sensor data
+  mutate(SC_uS_rollavg = rollapply(SC_uS, winSize,mean,align='center',fill=NA))%>%
+  mutate(date = date(datetime))%>%
+  select(date, site, id, datetime, SC_uS, SC_uS_rollavg, Ct_1, Ct_2, Temp_C)
+
+# # first convert to xts file
+# Clean.xts<- xts(select(Clean_CZO1,datetime, id, SC_uS, SC_uS_rollavg), order.by = Clean_CZO1$datetime)
+# 
+# # plot as dygraph
+# dygraph(Clean.xts)%>%
+#           dyRangeSelector()
+```
+
+#Read in Metadata, cut dataset into each BTC
+```{r}
+dis_meta <- read_csv('Data/in/Summary_Data.csv')%>% 
+  mutate(inj_time = mdy_hms(inject_time,tz='CST6CDT'))%>%
+  mutate(rise_time = mdy_hms(start_time,tz='CST6CDT'))%>%
+  mutate(end_time = mdy_hms(end_time,tz='CST6CDT')) %>% 
+  mutate(date=date(inj_time)) %>% 
+  rename(round_inj_sta=round_injloc_statloc) %>%
+  mutate(site = as.character(station)) 
+  # filter(type=='discharge') %>% %>% 
+  select(round_inj_sta, round, inject_loc, date, length, site, inj_time, mass_NaCl, rise_time, end_time, discharge, med_velocity)
+
+COND<-rbind(Clean_CZO4, Clean_CZO3, Clean_CZO350, Clean_CZO2, Clean_CZO1)
+
+dis_meta_nest<-dis_meta %>% 
+  mutate(round_id=round_inj_sta) %>% 
+  group_by(round_id) %>% 
+  nest()
+
+# df<-dis_meta_nest$data[[2]]
+
+BTC_GL<-map(dis_meta_nest$data, BTC_separation_set, df2=COND, base_time=1) %>% 
+  bind_rows()
+
+# Graph each BTC for each round
+ggplot(BTC_GL %>% 
+         filter(round=='1')) +
+  geom_line(aes(x=time_since_injection, y=SC_uS_rollavg)) +
+  labs(x = "Time Since Injection (mins)", y = "Conductivity uS/cm", title = "round 1") +
+  facet_wrap( ~ round_inj_sta)
+
+ggplot(BTC_GL %>% 
+         filter(round=='2')) +
+  geom_line(aes(x=time_since_injection, y=SC_uS_rollavg)) +
+  labs(x = "Time Since Injection (mins)", y = "Conductivity uS/cm", title = "round 2") +
+  facet_wrap( ~ round_inj_sta)
+
+ggplot(BTC_GL %>%
+         filter(round=='3')) +
+  geom_line(aes(x=time_since_injection, y=SC_uS_rollavg)) +
+  labs(x = "Time Since Injection (mins)", y = "Conductivity uS/cm", title = "round 3") +
+  facet_wrap( ~ round_inj_sta)
+
+ggplot(BTC_GL %>% 
+         filter(round=='4')) +
+  geom_line(aes(x=time_since_injection, y=SC_uS_rollavg)) +
+  labs(x = "Time Since Injection (mins)", y = "Conductivity uS/cm", title = "round 4") +
+  facet_wrap( ~ round_inj_sta)
+
+```
+
+# Calculate baseline concentrations and background correct Conductivity
+```{r}
+# Create nested dataset for use in baseline function
+BTC_GL_nest<-BTC_GL %>%
+  mutate(round_id=round_inj_sta) %>% 
+  group_by(round_id) %>% 
+  nest()
+
+# #   FOR TESTING
+ df<-BTC_GL_nest$data[[3]]
+
+BTC_GL_baseline<-map(BTC_GL_nest$data, baseline) %>% 
+  bind_rows()
+  # mutate(date=date(datetime))
+
+# Graph each BTC for each round
+ggplot(BTC_GL_baseline %>% 
+         filter(round=='1')) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGS, color = "Start BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGE, color = "End BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGL, color = "Linear BG Corr")) +
+  labs(x = "Time Since Injection (mins)", y = "NaCl (g/L)", title = "round 1") +
+  facet_wrap( ~ round_inj_sta)
+
+ggplot(BTC_GL_baseline %>% 
+         filter(round=='2')) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGS, color = "Start BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGE, color = "End BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGL, color = "Linear BG Corr")) +
+  labs(x = "Time Since Injection (mins)", y = "NaCl (g/L)", title = "round 2") +
+  facet_wrap( ~ round_inj_sta)
+
+ggplot(BTC_GL_baseline %>% 
+         filter(round=='3')) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGS, color = "Start BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGE, color = "End BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGL, color = "Linear BG Corr")) +
+  labs(x = "Time Since Injection (mins)", y = "NaCl (g/L)", title = "round 3") +
+  facet_wrap( ~ round_inj_sta)
+
+ggplot(BTC_GL_baseline %>% 
+         filter(round=='4')) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGS, color = "Start BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGE, color = "End BG Corr")) +
+  geom_line(aes(x=time_since_injection, y=NaCl_BGL, color = "Linear BG Corr")) +
+  labs(x = "Time Since Injection (mins)", y = "NaCl (g/L)", title = "round 4") +
+  facet_wrap( ~ round_inj_sta)
+```
+
+
+***From here on out I am only using Linear Background Correction. I can add in End and Start later!
+
+# Calculate discharge for appropriate slug (i.e. slugs released directly upstream of monitoring station ex: 4_1_1, 4_2_2, 4_3_3, 4_4_4, 4_5_5)
+```{r}
+# Create nested dataset for use in discharge function
+BTC_dis_nest<-BTC_GL_baseline %>%
+  mutate(round_id=round_inj_sta) %>% 
+  filter(!is.na(length)) %>% 
+  group_by(round_id) %>% 
+  nest()
+
+# #   FOR TESTING
+df<-BTC_dis_nest$data[[2]]
+
+BTC_GL_discharge<-map(BTC_dis_nest$data, discharge) %>% 
+  bind_rows()
+
+Dis_sum_1<-BTC_GL_discharge %>% 
+  select(date, site, M_D, C_D, Q_D) %>%
+  distinct()
+
+Dis_sum_nest<-Dis_sum_1 %>% 
+  mutate(date_group = date) %>% 
+  group_by(date_group) %>% 
+  nest()
+
+# #   FOR TESTING
+df<-Dis_sum_nest$data[[2]]
+
+Dis_sum<-map(Dis_sum_nest$data, upper_discharge) %>% 
+  bind_rows()
+
+# ## NEEDS TO BE UPDATED TO INCLUDE EACH REACH
+# delta_Q_nest<-Dis_sum_1 %>% 
+#   mutate(date_group = date) %>% 
+#   group_by(date_group) %>% 
+#   nest()
+# 
+# # # FOR TESTING
+# df<-delta_Q_nest$data[[1]]
+# 
+# Dis_sum<- map(delta_Q_nest$data, delta_discharge) %>% 
+#   bind_rows()
+  
+```
+
+# Calculate recovery for appropriate slug using discharge calculated above
+```{r}
+# Merge discharge summary with background corrected conductivity
+BTC_recov<-left_join(BTC_GL_baseline, Dis_sum, by = c("date", "site"))
+
+# Create nested dataset for use in recovery function
+BTC_recov_nest<-BTC_recov %>%
+  mutate(round_id=round_inj_sta) %>% 
+  filter(is.na(length)) %>% 
+  group_by(round_id) %>% 
+  nest()
+
+  # #   FOR TESTING
+df<-BTC_recov_nest$data[[6]]
+
+BTC_GL_recovery<-map(BTC_recov_nest$data, recovery) %>% 
+  bind_rows()
+
+
+BTC_GL_Summary <- BTC_GL_recovery %>%
+  select(
+    date,
+    site,
+    round_inj_sta,
+    M_D,
+    C_D,
+    Q_D,
+    M_U,
+    C_U,
+    Q_U,
+    C_UD,
+    Mrec,
+    Mloss,
+    per_Mloss,
+    delta_Q,
+    Qloss_min,
+    Qloss_max,
+    Qgain_min,
+    Qgain_max) %>%
+  distinct()
+
+
+write.csv(BTC_GL_Summary, file = 'data/out/GL_Mass_Loss_Summary.csv')
+
+```
+
